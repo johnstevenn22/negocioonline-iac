@@ -69,3 +69,5 @@ backup/
 .aws/
 credentials
 config
+
+*.md
