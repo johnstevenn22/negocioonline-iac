@@ -114,7 +114,7 @@ resource "aws_wafv2_web_acl_association" "alb_assoc" {
 }
 
 resource "aws_cloudwatch_log_group" "waf_logs" {
-  name              = "/aws/wafv2/${var.project_name}"
+  name              = "aws-waf-logs-${var.project_name}"
   retention_in_days = 365
   kms_key_id        = aws_kms_key.main.arn
 
@@ -185,11 +185,11 @@ resource "aws_security_group" "backend_sg" {
   }
 
   egress {
-    description = "Allow all outbound traffic to VPC"
+    description = "Allow outbound for ECR, CloudWatch, SSM via NAT"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = { Name = "${var.project_name}-backend-sg" }
@@ -209,11 +209,11 @@ resource "aws_security_group" "frontend_sg" {
   }
 
   egress {
-    description = "Allow all outbound traffic to VPC"
+    description = "Allow outbound for ECR, CloudWatch, SSM via NAT"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = { Name = "${var.project_name}-frontend-sg" }

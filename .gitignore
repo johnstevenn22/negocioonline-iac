@@ -71,3 +71,5 @@ credentials
 config
 
 *.md
+
+*.ps1
