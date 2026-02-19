@@ -138,7 +138,7 @@ resource "aws_lambda_function" "error_func" {
   handler                        = "index.handler"
   runtime                        = "nodejs20.x"
   source_code_hash               = filebase64sha256("lambda/funcion_error.zip")
-  reserved_concurrent_executions = 100
+  reserved_concurrent_executions = 50
   code_signing_config_arn        = aws_lambda_code_signing_config.lambda_code_signing.arn
 
   vpc_config {

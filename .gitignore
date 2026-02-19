@@ -73,3 +73,5 @@ config
 *.md
 
 *.ps1
+
+tfplan
