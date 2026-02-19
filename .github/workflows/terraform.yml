@@ -74,6 +74,7 @@ jobs:
         id: plan
         run: |
           terraform plan \
+            -var-file="config.tfvars" \
             -var="db_username=${{ secrets.DB_USERNAME }}" \
             -var="db_password=${{ secrets.DB_PASSWORD }}" \
             -var="alert_email=${{ secrets.ALERT_EMAIL }}" \
@@ -123,6 +124,7 @@ jobs:
       - name: Terraform Apply
         run: |
           terraform apply -auto-approve \
+            -var-file="config.tfvars" \
             -var="db_username=${{ secrets.DB_USERNAME }}" \
             -var="db_password=${{ secrets.DB_PASSWORD }}" \
             -var="alert_email=${{ secrets.ALERT_EMAIL }}"
