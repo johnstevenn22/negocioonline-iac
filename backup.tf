@@ -1,5 +1,11 @@
 resource "aws_backup_vault" "main_vault" {
-  name = "${var.project_name}-vault-${var.environment}"
+  name        = "${var.project_name}-vault-${var.environment}"
+  kms_key_arn = aws_kms_key.main.arn
+
+  tags = {
+    Name        = "${var.project_name}-backup-vault"
+    Environment = var.environment
+  }
 }
 
 resource "aws_backup_plan" "main_plan" {

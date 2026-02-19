@@ -105,7 +105,13 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_alarm" {
 }
 
 resource "aws_sns_topic" "alerts" {
-  name = "${var.project_name}-alerts-${var.environment}"
+  name              = "${var.project_name}-alerts-${var.environment}"
+  kms_master_key_id = aws_kms_key.main.id
+
+  tags = {
+    Name        = "${var.project_name}-alerts"
+    Environment = var.environment
+  }
 }
 
 resource "aws_sns_topic_subscription" "email_sub" {
