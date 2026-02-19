@@ -1,5 +1,5 @@
 aws_region   = "us-east-2"
-environment  = "dev"
+environment  = "prod"
 project_name = "pedidos-online"
 
 db_name = "pedidos_db"

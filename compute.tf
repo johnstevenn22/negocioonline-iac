@@ -9,21 +9,41 @@ resource "aws_ecs_cluster" "main" {
 
 resource "aws_ecr_repository" "backend" {
   name                 = "${var.project_name}-backend"
-  image_tag_mutability = "MUTABLE"
-  force_delete         = true
+  image_tag_mutability = "IMMUTABLE"
+  force_delete         = false
 
   image_scanning_configuration {
     scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "KMS"
+    kms_key         = aws_kms_key.main.arn
+  }
+
+  tags = {
+    Name        = "${var.project_name}-backend-repo"
+    Environment = var.environment
   }
 }
 
 resource "aws_ecr_repository" "frontend" {
   name                 = "${var.project_name}-frontend"
-  image_tag_mutability = "MUTABLE"
-  force_delete         = true
+  image_tag_mutability = "IMMUTABLE"
+  force_delete         = false
 
   image_scanning_configuration {
     scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "KMS"
+    kms_key         = aws_kms_key.main.arn
+  }
+
+  tags = {
+    Name        = "${var.project_name}-frontend-repo"
+    Environment = var.environment
   }
 }
 
@@ -80,12 +100,24 @@ resource "aws_iam_role" "ecs_task_role" {
 
 resource "aws_cloudwatch_log_group" "backend" {
   name              = "/ecs/${var.project_name}-backend"
-  retention_in_days = 30
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.main.arn
+
+  tags = {
+    Name        = "${var.project_name}-backend-logs"
+    Environment = var.environment
+  }
 }
 
 resource "aws_cloudwatch_log_group" "frontend" {
   name              = "/ecs/${var.project_name}-frontend"
-  retention_in_days = 30
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.main.arn
+
+  tags = {
+    Name        = "${var.project_name}-frontend-logs"
+    Environment = var.environment
+  }
 }
 
 resource "aws_ecs_task_definition" "backend" {

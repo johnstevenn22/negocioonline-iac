@@ -6,6 +6,80 @@ resource "aws_vpc" "main_vpc" {
   tags = { Name = "${var.project_name}-vpc-${var.environment}" }
 }
 
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.main_vpc.id
+
+  tags = {
+    Name = "${var.project_name}-default-sg-restricted"
+  }
+}
+
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  name              = "/aws/vpc/${var.project_name}-${var.environment}"
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.main.arn
+
+  tags = {
+    Name        = "${var.project_name}-vpc-flow-logs"
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role" "vpc_flow_logs_role" {
+  name = "${var.project_name}-vpc-flow-logs-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = ""
+        Effect = "Allow"
+        Principal = {
+          Service = "vpc-flow-logs.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-vpc-flow-logs-role"
+  }
+}
+
+resource "aws_iam_role_policy" "vpc_flow_logs_policy" {
+  name = "${var.project_name}-vpc-flow-logs-policy"
+  role = aws_iam_role.vpc_flow_logs_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_flow_log" "main_vpc_flow_log" {
+  iam_role_arn    = aws_iam_role.vpc_flow_logs_role.arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.main_vpc.id
+
+  tags = {
+    Name = "${var.project_name}-vpc-flow-log"
+  }
+}
+
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main_vpc.id
   tags   = { Name = "${var.project_name}-igw" }
@@ -15,7 +89,7 @@ resource "aws_subnet" "public_1" {
   vpc_id                  = aws_vpc.main_vpc.id
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
   tags                    = { Name = "${var.project_name}-public-${var.aws_region}a" }
 }
 
@@ -23,7 +97,7 @@ resource "aws_subnet" "public_2" {
   vpc_id                  = aws_vpc.main_vpc.id
   cidr_block              = "10.0.2.0/24"
   availability_zone       = "${var.aws_region}b"
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
   tags                    = { Name = "${var.project_name}-public-${var.aws_region}b" }
 }
 
