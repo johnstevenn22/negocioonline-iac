@@ -12,6 +12,37 @@ resource "aws_s3_bucket_public_access_block" "alb_logs_access_logs" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs_access_encryption" {
+  bucket = aws_s3_bucket.alb_logs_access_logs.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+resource "aws_s3_bucket_versioning" "alb_logs_access_versioning" {
+  bucket = aws_s3_bucket.alb_logs_access_logs.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+resource "aws_s3_bucket_lifecycle_configuration" "alb_logs_access_lifecycle" {
+  bucket = aws_s3_bucket.alb_logs_access_logs.id
+  rule {
+    id     = "delete-old-access-logs"
+    status = "Enabled"
+    filter {}
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+    expiration {
+      days = 90
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
 resource "aws_s3_bucket" "alb_logs" {
   bucket = "${var.project_name}-alb-logs-${var.environment}"
   tags = {
@@ -37,8 +68,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs_encrypti
   bucket = aws_s3_bucket.alb_logs.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.main.arn
+      sse_algorithm = "AES256"
     }
   }
 }
@@ -72,6 +102,8 @@ resource "aws_s3_bucket_public_access_block" "alb_logs" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+data "aws_elb_service_account" "main" {}
+
 resource "aws_s3_bucket_policy" "alb_logs_policy" {
   bucket = aws_s3_bucket.alb_logs.id
   policy = jsonencode({
@@ -81,7 +113,7 @@ resource "aws_s3_bucket_policy" "alb_logs_policy" {
         Sid    = "AWSLogDeliveryWrite"
         Effect = "Allow"
         Principal = {
-          Service = "elasticloadbalancing.amazonaws.com"
+          AWS = data.aws_elb_service_account.main.arn
         }
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.alb_logs.arn}/*"
@@ -90,7 +122,7 @@ resource "aws_s3_bucket_policy" "alb_logs_policy" {
         Sid    = "AWSLogDeliveryAclCheck"
         Effect = "Allow"
         Principal = {
-          Service = "elasticloadbalancing.amazonaws.com"
+          AWS = data.aws_elb_service_account.main.arn
         }
         Action   = "s3:GetBucketAcl"
         Resource = aws_s3_bucket.alb_logs.arn
