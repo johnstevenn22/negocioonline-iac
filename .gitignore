@@ -1,0 +1,71 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+
+# Terraform override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI configuration files
+.terraformrc
+terraform.rc
+
+# Sensitive variable files
+*.auto.tfvars
+*.auto.tfvars.json
+secrets.tfvars
+terraform.tfvars
+
+# Node.js (Lambda functions)
+lambda/node_modules/
+lambda/package-lock.json
+lambda/yarn.lock
+lambda/.env
+lambda/dist/
+lambda/build/
+
+# General Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+.DS_Store
+*.bak
+
+# Backup files
+*.backup
+backup/
+
+# Zip files -Lambda deployment packages
+*.zip
+
+# AWS credentials 
+.aws/
+credentials
+config
