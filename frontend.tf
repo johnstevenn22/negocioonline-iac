@@ -1,54 +1,76 @@
-# 1. Bucket de S3 para el sitio web (HTML, JS, CSS)
-resource "aws_s3_bucket" "frontend_bucket" {
-  bucket = "mi-frontend-app-${random_id.bucket_suffix.hex}" # Nombre único
-}
+resource "aws_ecs_task_definition" "frontend" {
+  family                   = "${var.project_name}-frontend"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.frontend_cpu
+  memory                   = var.frontend_memory
+  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
-resource "random_id" "bucket_suffix" {
-  byte_length = 4
-}
-
-# 2. Origin Access Control (solo CloudFront pueda leer el S3)
-resource "aws_cloudfront_origin_access_control" "default" {
-  name                              = "s3-access-control"
-  origin_access_control_origin_type = "s3"
-  signing_behavior                  = "always"
-  signing_protocol                  = "sigv4"
-}
-
-# 3. Distribución de CloudFront
-resource "aws_cloudfront_distribution" "s3_distribution" {
-  origin {
-    domain_name              = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name
-    origin_access_control_id = aws_cloudfront_origin_access_control.default.id
-    origin_id                = "S3-Origin"
-  }
-
-  enabled             = true
-  is_ipv6_enabled     = true
-  default_root_object = "index.html"
-
-  default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-Origin"
-
-    forwarded_values {
-      query_string = false
-      cookies { forward = "none" }
+  container_definitions = jsonencode([{
+    name  = "frontend"
+    image = "${aws_ecr_repository.frontend.repository_url}:latest"
+    portMappings = [{
+      containerPort = var.frontend_port
+      hostPort      = var.frontend_port
+      protocol      = "tcp"
+    }]
+    environment = [
+      { name = "API_URL", value = "http://${aws_lb.main_alb.dns_name}/api" },
+      { name = "NODE_ENV", value = var.environment }
+    ]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/ecs/${var.project_name}-frontend"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "frontend"
+      }
     }
+  }])
+}
 
-    viewer_protocol_policy = "redirect-to-https"
+resource "aws_ecs_service" "frontend" {
+  name            = "${var.project_name}-frontend"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.frontend.arn
+  desired_count   = var.frontend_desired_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+    security_groups  = [aws_security_group.frontend_sg.id]
+    assign_public_ip = false
   }
 
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
+  load_balancer {
+    target_group_arn = aws_lb_target_group.frontend_tg.arn
+    container_name   = "frontend"
+    container_port   = var.frontend_port
+  }
+
+  depends_on = [aws_lb_listener.http]
+}
+
+resource "aws_appautoscaling_target" "frontend" {
+  max_capacity       = var.frontend_max_count
+  min_capacity       = var.frontend_desired_count
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.frontend.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "frontend_cpu" {
+  name               = "${var.project_name}-frontend-cpu-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.frontend.resource_id
+  scalable_dimension = aws_appautoscaling_target.frontend.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.frontend.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
+    target_value = var.cpu_scaling_target
   }
-
-  viewer_certificate {
-    cloudfront_default_certificate = true
-  }
-
-  tags = { Name = "Frontend-CDN" }
 }

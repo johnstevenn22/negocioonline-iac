@@ -1,6 +1,5 @@
-# 1. Dashboard personalizado para ver todo de un vistazo
 resource "aws_cloudwatch_dashboard" "main" {
-  dashboard_name = "Dashboard-Proyecto"
+  dashboard_name = "${var.project_name}-dashboard-${var.environment}"
 
   dashboard_body = jsonencode({
     widgets = [
@@ -12,12 +11,12 @@ resource "aws_cloudwatch_dashboard" "main" {
         height = 6
         properties = {
           metrics = [
-            [ "AWS/EC2", "CPUUtilization", "AutoScalingGroupName", "${aws_autoscaling_group.backend_asg.name}" ]
+            ["AWS/ECS", "CPUUtilization", "ServiceName", "${var.project_name}-backend", "ClusterName", "${var.project_name}-cluster-${var.environment}"]
           ]
           period = 300
           stat   = "Average"
-          region = "us-east-2"
-          title  = "Uso de CPU - Backends"
+          region = var.aws_region
+          title  = "CPU Backend - Fargate"
         }
       },
       {
@@ -28,43 +27,89 @@ resource "aws_cloudwatch_dashboard" "main" {
         height = 6
         properties = {
           metrics = [
-            [ "AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${aws_db_instance.postgres.identifier}" ]
+            ["AWS/ECS", "CPUUtilization", "ServiceName", "${var.project_name}-frontend", "ClusterName", "${var.project_name}-cluster-${var.environment}"]
           ]
           period = 300
           stat   = "Average"
-          region = "us-east-2"
-          title  = "Uso de CPU - Base de Datos"
+          region = var.aws_region
+          title  = "CPU Frontend - Fargate"
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${var.project_name}-postgres-${var.environment}"]
+          ]
+          period = 300
+          stat   = "Average"
+          region = var.aws_region
+          title  = "CPU - PostgreSQL"
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/ECS", "MemoryUtilization", "ServiceName", "${var.project_name}-backend", "ClusterName", "${var.project_name}-cluster-${var.environment}"]
+          ]
+          period = 300
+          stat   = "Average"
+          region = var.aws_region
+          title  = "Memoria Backend - Fargate"
         }
       }
     ]
   })
 }
 
-# 2. Alarma de CPU alta para el Backend A
-resource "aws_cloudwatch_metric_alarm" "cpu_group_alarm" {
-  alarm_name          = "cpu-alta-backend-group"
+resource "aws_cloudwatch_metric_alarm" "backend_cpu_alarm" {
+  alarm_name          = "${var.project_name}-backend-cpu-alta"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
+  evaluation_periods  = 2
   metric_name         = "CPUUtilization"
-  namespace           = "AWS/EC2"
-  period              = "300"
+  namespace           = "AWS/ECS"
+  period              = 300
   statistic           = "Average"
-  threshold           = "70" 
+  threshold           = 70
   alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.backend_asg.name
+    ServiceName = aws_ecs_service.backend.name
+    ClusterName = aws_ecs_cluster.main.name
   }
 }
 
-# Crear el tema de notificaciones
-resource "aws_sns_topic" "alerts" {
-  name = "infra-alerts-topic"
+resource "aws_cloudwatch_metric_alarm" "rds_cpu_alarm" {
+  alarm_name          = "${var.project_name}-rds-cpu-alta"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 80
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.postgres.identifier
+  }
 }
 
-# Aquí podrías suscribir tu email
+resource "aws_sns_topic" "alerts" {
+  name = "${var.project_name}-alerts-${var.environment}"
+}
+
 resource "aws_sns_topic_subscription" "email_sub" {
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
-  endpoint  = "rodrigo.baldeonj@gmail.com"
+  endpoint  = var.alert_email
 }

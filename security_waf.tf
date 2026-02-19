@@ -1,8 +1,7 @@
-# 1. Definición del WAF corregida
 resource "aws_wafv2_web_acl" "main" {
-  name        = "api-web-acl"
-  description = "Proteccion contra SQLi y XSS"
-  scope       = "REGIONAL"
+  name  = "${var.project_name}-web-acl"
+  scope = "REGIONAL"
+
   default_action {
     allow {}
   }
@@ -26,33 +25,74 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
+  rule {
+    name     = "AWSSQLiRule"
+    priority = 2
+    override_action {
+      none {}
+    }
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesSQLiRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AWSSQLiRule"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "AWSRateLimitRule"
+    priority = 3
+    action {
+      block {}
+    }
+    statement {
+      rate_based_statement {
+        limit              = 2000
+        aggregate_key_type = "IP"
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AWSRateLimitRule"
+      sampled_requests_enabled   = true
+    }
+  }
+
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name                = "main-waf"
+    metric_name                = "${var.project_name}-waf"
     sampled_requests_enabled   = true
   }
 }
 
-# 2. Asociación con el Balanceador
 resource "aws_wafv2_web_acl_association" "alb_assoc" {
   resource_arn = aws_lb.main_alb.arn
   web_acl_arn  = aws_wafv2_web_acl.main.arn
 }
 
-# 3. SES (Simple Email Service) para el envío de correos desde la Lambda
 resource "aws_ses_email_identity" "email" {
-  email = "rodrigo.baldeonj@gmail.com" # mismo correo que SNS para verificarlo en AWS
+  email = var.alert_email
 }
 
-# Security Group para Balanceador (Capa Exterior)
 resource "aws_security_group" "alb_sg" {
-  name        = "alb-sg"
-  description = "Permite trafico HTTP desde internet"
-  vpc_id      = aws_vpc.main_vpc.id
+  name   = "${var.project_name}-alb-sg"
+  vpc_id = aws_vpc.main_vpc.id
 
   ingress {
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -64,22 +104,18 @@ resource "aws_security_group" "alb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name = "ALB-SecurityGroup"
-  }
+  tags = { Name = "${var.project_name}-alb-sg" }
 }
 
-# Security Group para el Backend (Capa Media)
 resource "aws_security_group" "backend_sg" {
-  name        = "backend-sg"
-  description = "Permite trafico solo desde el ALB"
-  vpc_id      = aws_vpc.main_vpc.id
+  name   = "${var.project_name}-backend-sg"
+  vpc_id = aws_vpc.main_vpc.id
 
   ingress {
-    from_port       = 8080
-    to_port         = 8080
+    from_port       = var.backend_port
+    to_port         = var.backend_port
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id] # solo acepta del ALB
+    security_groups = [aws_security_group.alb_sg.id]
   }
 
   egress {
@@ -89,25 +125,54 @@ resource "aws_security_group" "backend_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name = "Backend-SecurityGroup"
-  }
+  tags = { Name = "${var.project_name}-backend-sg" }
 }
 
-# Security Group para RDS
+resource "aws_security_group" "frontend_sg" {
+  name   = "${var.project_name}-frontend-sg"
+  vpc_id = aws_vpc.main_vpc.id
+
+  ingress {
+    from_port       = var.frontend_port
+    to_port         = var.frontend_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_name}-frontend-sg" }
+}
+
 resource "aws_security_group" "rds_sg" {
-  name        = "rds-sg"
-  description = "Permite trafico PostgreSQL desde el backend"
-  vpc_id      = aws_vpc.main_vpc.id
+  name   = "${var.project_name}-rds-sg"
+  vpc_id = aws_vpc.main_vpc.id
 
   ingress {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.backend_sg.id] # Solo el backend entra
+    security_groups = [aws_security_group.backend_sg.id]
   }
 
-  tags = {
-    Name = "RDS-SecurityGroup"
+  tags = { Name = "${var.project_name}-rds-sg" }
+}
+
+resource "aws_security_group" "redis_sg" {
+  name   = "${var.project_name}-redis-sg"
+  vpc_id = aws_vpc.main_vpc.id
+
+  ingress {
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.backend_sg.id]
   }
+
+  tags = { Name = "${var.project_name}-redis-sg" }
 }

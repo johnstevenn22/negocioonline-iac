@@ -1,25 +1,23 @@
-# 1. El Balanceador de Carga (ALB)
 resource "aws_lb" "main_alb" {
-  name               = "main-app-alb"
+  name               = "${var.project_name}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
-  # El ALB necesita al menos dos subredes públicas en diferentes AZ
   subnets            = [aws_subnet.public_1.id, aws_subnet.public_2.id]
 
-  tags = { Name = "Main-ALB" }
+  tags = { Name = "${var.project_name}-alb" }
 }
 
-# 2. El Target Group (A donde se envía el tráfico)
 resource "aws_lb_target_group" "backend_tg" {
-  name     = "backend-target-group"
-  port     = 8080
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.main_vpc.id
+  name        = "${var.project_name}-backend-tg"
+  port        = var.backend_port
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main_vpc.id
+  target_type = "ip"
 
   health_check {
-    path                = "/"
-    port                = "8080"
+    path                = "/api/health"
+    port                = tostring(var.backend_port)
     healthy_threshold   = 3
     unhealthy_threshold = 3
     timeout             = 5
@@ -27,7 +25,23 @@ resource "aws_lb_target_group" "backend_tg" {
   }
 }
 
-# 3. Listener (Escucha en el puerto 80 y redirige al TG)
+resource "aws_lb_target_group" "frontend_tg" {
+  name        = "${var.project_name}-frontend-tg"
+  port        = var.frontend_port
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main_vpc.id
+  target_type = "ip"
+
+  health_check {
+    path                = "/"
+    port                = tostring(var.frontend_port)
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+  }
+}
+
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main_alb.arn
   port              = "80"
@@ -35,6 +49,22 @@ resource "aws_lb_listener" "http" {
 
   default_action {
     type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend_tg.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "api_routing" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
     target_group_arn = aws_lb_target_group.backend_tg.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*"]
+    }
   }
 }
