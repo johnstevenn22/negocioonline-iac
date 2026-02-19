@@ -83,6 +83,27 @@ resource "aws_iam_role_policy" "lambda_ses" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_sqs" {
+  name = "${var.project_name}-lambda-sqs"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "sqs:SendMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl"
+      ]
+      Resource = [
+        aws_sqs_queue.lambda_dlq.arn,
+        aws_sqs_queue.error_queue.arn
+      ]
+    }]
+  })
+}
+
 resource "aws_signer_signing_profile" "lambda_signing" {
   platform_id = "AWSLambda-SHA384-ECDSA"
   name        = "${replace(var.project_name, "-", "")}lambdasigning${var.environment}"
