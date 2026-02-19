@@ -37,6 +37,26 @@ resource "aws_db_subnet_group" "main" {
   subnet_ids = [aws_subnet.private_1.id, aws_subnet.private_2.id]
 }
 
+resource "aws_db_parameter_group" "postgres" {
+  name   = "${var.project_name}-postgres-params"
+  family = "postgres16"
+
+  parameter {
+    name  = "log_statement"
+    value = "all"
+  }
+
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-postgres-params"
+    Environment = var.environment
+  }
+}
+
 resource "aws_db_instance" "postgres" {
   identifier                            = "${var.project_name}-postgres-${var.environment}"
   allocated_storage                     = 20
@@ -47,6 +67,7 @@ resource "aws_db_instance" "postgres" {
   username                              = var.db_username
   password                              = var.db_password
   db_subnet_group_name                  = aws_db_subnet_group.main.name
+  parameter_group_name                  = aws_db_parameter_group.postgres.name
   vpc_security_group_ids                = [aws_security_group.rds_sg.id]
   skip_final_snapshot                   = false
   final_snapshot_identifier             = "${var.project_name}-postgres-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"

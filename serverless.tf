@@ -74,11 +74,40 @@ resource "aws_iam_role_policy" "lambda_ses" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-      Resource = "*"
+      Effect = "Allow"
+      Action = ["ses:SendEmail", "ses:SendRawEmail"]
+      Resource = [
+        "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/*"
+      ]
     }]
   })
+}
+
+resource "aws_signer_signing_profile" "lambda_signing" {
+  platform_id = "AWSLambda-SHA384-ECDSA"
+  name        = "${var.project_name}-lambda-signing-profile"
+
+  signature_validity_period {
+    value = 5
+    type  = "YEARS"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-lambda-signing"
+    Environment = var.environment
+  }
+}
+
+resource "aws_lambda_code_signing_config" "lambda_code_signing" {
+  description = "Code signing config for Lambda functions"
+
+  allowed_publishers {
+    signing_profile_version_arns = [aws_signer_signing_profile.lambda_signing.arn]
+  }
+
+  policies {
+    untrusted_artifact_on_deployment = "Warn"
+  }
 }
 
 resource "aws_lambda_function" "error_func" {
@@ -89,6 +118,7 @@ resource "aws_lambda_function" "error_func" {
   runtime                        = "nodejs20.x"
   source_code_hash               = filebase64sha256("lambda/funcion_error.zip")
   reserved_concurrent_executions = 100
+  code_signing_config_arn        = aws_lambda_code_signing_config.lambda_code_signing.arn
 
   vpc_config {
     subnet_ids         = [aws_subnet.private_1.id, aws_subnet.private_2.id]
