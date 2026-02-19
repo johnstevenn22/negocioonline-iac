@@ -1,0 +1,21 @@
+aws_region   = "us-east-2"
+environment  = "dev"
+project_name = "pedidos-online"
+
+db_name = "pedidos_db"
+
+backend_port  = 8080
+frontend_port = 80
+
+backend_cpu    = 512
+backend_memory = 1024
+
+frontend_cpu    = 256
+frontend_memory = 512
+
+backend_desired_count  = 2
+frontend_desired_count = 2
+backend_max_count      = 6
+frontend_max_count     = 4
+
+cpu_scaling_target = 60.0
