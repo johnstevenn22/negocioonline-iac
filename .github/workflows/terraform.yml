@@ -35,6 +35,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare Lambda Package
+        run: |
+          cd lambda
+          zip -r funcion_error.zip index.js
+          cd ..
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
@@ -55,6 +61,12 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Prepare Lambda Package
+        run: |
+          cd lambda
+          zip -r funcion_error.zip index.js
+          cd ..
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -86,7 +98,7 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           script: |
-            const output = `#### Terraform Plan 📖
+            const output = `#### Terraform Plan
             \`\`\`
             ${{ steps.plan.outputs.stdout }}
             \`\`\`
@@ -106,6 +118,12 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+
+      - name: Prepare Lambda Package
+        run: |
+          cd lambda
+          zip -r funcion_error.zip index.js
+          cd ..
 
       - uses: hashicorp/setup-terraform@v3
         with:
