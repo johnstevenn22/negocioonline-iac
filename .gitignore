@@ -51,6 +51,10 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+
+*.swp
+*.swo
+*~
 .DS_Store
 
 # OS files

@@ -82,6 +82,12 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      - name: Import Existing Resources
+        run: |
+          chmod +x import-existing-resources.sh
+          ./import-existing-resources.sh
+        continue-on-error: true
+
       - name: Terraform Plan
         id: plan
         run: |
@@ -138,6 +144,12 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+
+      - name: Import Existing Resources
+        run: |
+          chmod +x import-existing-resources.sh
+          ./import-existing-resources.sh
+        continue-on-error: true
 
       - name: Terraform Apply
         run: |
